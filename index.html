@@ -374,6 +374,7 @@ details.more[open] > summary .caret{transform:rotate(180deg)}
 </div>
 
 <input type="file" id="photoInput" accept="image/*" capture="environment" hidden>
+<input type="file" id="photoPick" accept="image/*" multiple hidden>
 <input type="file" id="restoreInput" accept="application/json,.json" hidden>
 
 <script>
@@ -644,6 +645,7 @@ const ICON = {
   chev:'<path d="M6 9l6 6 6-6"/>',
   cloud:'<path d="M20 16.6A5 5 0 0018 7h-1.3A8 8 0 103 15"/><path d="M12 12v9"/><path d="M8 17l4-4 4 4"/>',
   cam:'<path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/>',
+  pic:'<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>',
   down:'<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
   mail:'<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/>',
   copy:'<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>',
@@ -912,7 +914,8 @@ function roomDetailHTML(r){
     '<div><div class="eyebrow" style="margin-bottom:6px">Photos</div>'+
       '<div class="photos" data-photos="'+r.id+'">'+
         (r.photos||[]).map(p => '<span class="photo" data-pid="'+p+'"><img alt="Room photo" data-src="'+p+'"><button data-delphoto="'+p+'" data-rid="'+r.id+'" aria-label="Remove photo">×</button></span>').join("")+
-        '<button class="addphoto" data-act="add-photo" data-rid="'+r.id+'">'+svg("cam")+'Add</button>'+
+        '<button class="addphoto" data-act="add-photo" data-rid="'+r.id+'">'+svg("cam")+'Camera</button>'+
+        '<button class="addphoto" data-act="pick-photo" data-rid="'+r.id+'">'+svg("pic")+'Files</button>'+
       '</div></div>'+
 
     '<div class="row" style="gap:8px">'+
@@ -1223,6 +1226,60 @@ function buildReport(w){
 /* ---------- the send sheet ---------- */
 
 let emailTarget = null;
+let sharePayload = null;
+
+function dataUrlToBlob(u){
+  const comma = u.indexOf(",");
+  const head = u.slice(0, comma);
+  const bin = atob(u.slice(comma + 1));
+  const mime = (head.match(/:(.*?);/) || [null, "image/jpeg"])[1];
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
+/* Photos can't ride on a mailto link, but the phone's share sheet takes them as
+   real attachments. Gather them up front — navigator.share has to be called
+   straight off the tap, with no awaits in between. */
+async function prepareShare(w){
+  sharePayload = null;
+  const btn = $("#shareBtn");
+  if (btn) btn.style.display = "none";
+  if (typeof File !== "function" || !navigator.canShare || !navigator.share) return;
+
+  const files = [];
+  let n = 0;
+  for (const r of w.rooms){
+    let k = 0;
+    for (const pid of (r.photos || [])){
+      if (n >= 20) break;
+      const rec = await getPhoto(pid);
+      if (!rec || !rec.full) continue;
+      n++; k++;
+      const name = String(n).padStart(2, "0") + "-" + slug(roomLabel(w, r)) + (k > 1 ? "-" + k : "") + ".jpg";
+      try { files.push(new File([dataUrlToBlob(rec.full)], name, { type: "image/jpeg" })); } catch(e){}
+    }
+  }
+  if (!files.length) return;
+  try { if (!navigator.canShare({ files: files })) return; } catch(e){ return; }
+
+  sharePayload = { files: files, title: "Bid walkthrough — " + wtName(w), text: buildReport(w) };
+  if (emailTarget !== w.id) return;
+  if (btn){
+    btn.style.display = "";
+    btn.querySelector(".lbl").textContent =
+      "Send with " + files.length + " photo" + (files.length > 1 ? "s" : "");
+  }
+}
+
+function doShare(){
+  if (!sharePayload) return;
+  const w = DB.walkthroughs.find(x => x.id === emailTarget);
+  copyReport();
+  if (w) markSent(w);
+  try { navigator.share(sharePayload).catch(function(){}); }
+  catch(e){ toast("This device can't share files. Use the email button instead."); }
+}
 
 function openEmailSheet(wtId){
   const w = DB.walkthroughs.find(x => x.id === wtId); if (!w) return;
@@ -1237,16 +1294,20 @@ function openEmailSheet(wtId){
         '<span class="note">Remember this address</span></label>'+
     '</div>'+
     '<div class="section"><div class="stack-sm">'+
-      '<a class="btn btn-primary btn-block" id="mailLink" data-act="do-email" href="'+esc(mailHref(w, PREFS.sendTo))+'">'+svg("mail")+'Open in my email app</a>'+
+      '<button class="btn btn-primary btn-block" id="shareBtn" data-act="do-share" style="display:none">'+svg("pic")+'<span class="lbl">Send with photos</span></button>'+
+      '<a class="btn btn-solid btn-block" id="mailLink" data-act="do-email" href="'+esc(mailHref(w, PREFS.sendTo))+'">'+svg("mail")+'Open in my email app</a>'+
       '<button class="btn btn-ghost btn-block" data-act="do-copy">'+svg("copy")+'Copy the report</button>'+
       '<button class="btn btn-ghost btn-block" data-act="do-csv">'+svg("down")+'Save as a spreadsheet</button>'+
     '</div>'+
-    '<p class="note" style="margin-top:9px">The report gets copied either way, so if your email app opens empty just paste it in.</p></div>'+
+    '<p class="note" style="margin-top:9px">'+
+      ((w.rooms.some(r => (r.photos||[]).length)) ? 'Photos can only go out through the share sheet \u2014 a plain email link can\'t carry attachments. ' : '')+
+      'The report gets copied either way, so if your email app opens empty just paste it in.</p></div>'+
     '<div class="section"><span class="eyebrow">What gets sent</span>'+
       '<textarea id="reportText" readonly style="min-height:340px; font-size:13px; line-height:1.4; font-family:ui-monospace,SFMono-Regular,Menlo,monospace">'+esc(report)+'</textarea>'+
     '</div>';
   $("#emailSheet").classList.add("on");
   document.body.style.overflow = "hidden";
+  prepareShare(w);
   pushNav({ sheet: "email", screen: view.screen, wtId: view.wtId });
 }
 function mailHref(w, to){
@@ -1488,6 +1549,7 @@ document.addEventListener("click", async (e) => {
   }
   else if (act === "add-room") openTypeSheet();
   else if (act === "add-photo"){ photoTargetRoom = el.dataset.rid; $("#photoInput").click(); }
+  else if (act === "pick-photo"){ photoTargetRoom = el.dataset.rid; $("#photoPick").click(); }
   else if (act === "dup-room"){
     const w = currentWT(); const r = w && w.rooms.find(x => x.id === el.dataset.rid); if (!r) return;
     const copy = JSON.parse(JSON.stringify(r));
@@ -1515,6 +1577,7 @@ document.addEventListener("click", async (e) => {
   }
   else if (act === "email"){ openEmailSheet(el.dataset.wtid || view.wtId); }
   else if (act === "do-email"){ doEmail(); }
+  else if (act === "do-share"){ doShare(); }
   else if (act === "do-copy"){ toast(copyReport() ? "Report copied" : "Couldn't copy — select the text below instead"); }
   else if (act === "do-csv"){ exportCSV(emailTarget); }
   else if (act === "export-all"){ exportCSV("all"); }
@@ -1584,11 +1647,13 @@ $("#restoreInput").addEventListener("change", async (e) => {
   if (f) await restoreFrom(f);
 });
 
-$("#photoInput").addEventListener("change", async (e) => {
-  const f = e.target.files && e.target.files[0];
+async function onPhotoInput(e){
+  const files = Array.from(e.target.files || []);
   e.target.value = "";
-  if (f) await handlePhotoFile(f);
-});
+  for (const f of files) await handlePhotoFile(f);
+}
+$("#photoInput").addEventListener("change", onPhotoInput);
+$("#photoPick").addEventListener("change", onPhotoInput);
 
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
