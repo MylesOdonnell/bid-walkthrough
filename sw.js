@@ -6,7 +6,7 @@
    the user an Update button. Old caches are dropped on activate.
 
    Forget to bump VERSION and nobody gets the update. */
-const VERSION = "bw-2026-08-25-5";
+const VERSION = "bw-2026-08-26-8";
 const SHELL   = "shell-" + VERSION;
 const FONTS   = "fonts-v1";
 

@@ -13,6 +13,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Bid Walk">
 <link rel="apple-touch-icon" href="icon-180.png">
+<script>try{var t=localStorage.getItem("mod_bid_theme_v1");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
 <link rel="icon" href="icon-192.png" sizes="192x192">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -452,11 +453,13 @@ const DEFAULT_RATES = {
 /* minutes added per fixture, per visit */
 const DEFAULT_FIXTURE_MIN = {
   toilet:3, urinal:2.5, sink:2, shower:5, mirror:1, dispenser:0.75,
-  trash:0.5, recycle:0.5, desk:0.75, fountain:1.5, appliance:2, glass_door:1.5
+  trash:0.5, recycle:0.5, desk:0.75, fountain:1.5, appliance:2, glass_door:1.5,
+  table_small:0.5, table_big:1.5, table_long:2
 };
 const FIXTURES = [
   ["toilet","Toilets"],["urinal","Urinals"],["sink","Sinks"],["shower","Showers"],
   ["mirror","Mirrors"],["dispenser","Dispensers"],["trash","Trash cans"],["recycle","Recycle bins"],["desk","Desks"],
+  ["table_small","Small tables"],["table_big","Big tables"],["table_long","Long tables"],
   ["fountain","Fountains"],["appliance","Appliances"],["glass_door","Glass doors"]
 ];
 /* which fixtures show up first for a given room type */
@@ -467,15 +470,20 @@ const FIXTURE_HINT = {
   shower_room:["shower","sink","mirror","trash"],
   office_private:["desk","trash","recycle"], office_open:["desk","trash","recycle"],
   office_exec:["desk","trash","recycle"],
-  conference:["desk","trash","recycle","glass_door"], board_room:["desk","trash","recycle","glass_door"],
-  training:["desk","trash","recycle"], huddle:["desk","trash","glass_door"],
-  break_room:["sink","trash","recycle","appliance"], kitchen:["sink","trash","recycle","appliance"],
-  cafeteria:["trash","recycle","appliance"], coffee_bar:["sink","trash","recycle","appliance"],
+  conference:["table_long","table_big","trash","recycle","glass_door"],
+  board_room:["table_long","table_big","trash","recycle","glass_door"],
+  training:["table_long","table_small","desk","trash","recycle"],
+  huddle:["table_small","trash","glass_door"],
+  break_room:["table_small","table_long","sink","trash","recycle","appliance"],
+  kitchen:["sink","trash","recycle","appliance"],
+  cafeteria:["table_long","table_big","table_small","trash","recycle","appliance"],
+  coffee_bar:["table_small","sink","trash","recycle","appliance"],
   lobby:["trash","recycle","glass_door","fountain"], vestibule:["trash","glass_door"],
   hallway:["trash","recycle","fountain"], gym:["trash","mirror","fountain"],
-  common_area:["trash","recycle","fountain"], copy_print:["trash","recycle"],
-  mail_room:["trash","recycle"], classroom:["desk","trash","recycle"],
-  library:["desk","trash","recycle"], waiting:["trash","recycle"],
+  common_area:["table_small","trash","recycle","fountain"], copy_print:["table_long","trash","recycle"],
+  mail_room:["table_long","trash","recycle"], classroom:["desk","table_small","trash","recycle"],
+  library:["table_long","table_big","desk","trash","recycle"], waiting:["table_small","trash","recycle"],
+  daycare:["table_small","table_long","sink","trash"], chapel:["table_long","trash"],
   exam_room:["sink","trash"], treatment:["sink","trash"], lab:["sink","trash"], dental_op:["sink","trash"]
 };
 
@@ -507,6 +515,7 @@ const LS_KEY = "mod_bid_walkthroughs_v1";
 const LS_RATES = "mod_bid_rates_v1";
 const LS_RECENT = "mod_bid_recent_types_v1";
 const LS_PREFS  = "mod_bid_prefs_v1";
+const LS_THEME  = "mod_bid_theme_v1";
 
 function safeGet(key, fallback){
   try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
@@ -523,6 +532,27 @@ let RATES = Object.assign({}, DEFAULT_RATES, safeGet(LS_RATES, {}).rates || {});
 let FIXMIN = Object.assign({}, DEFAULT_FIXTURE_MIN, safeGet(LS_RATES, {}).fixmin || {});
 let RECENT = safeGet(LS_RECENT, []);
 let PREFS = Object.assign({ sendTo: "" }, safeGet(LS_PREFS, {}));
+
+/* auto = follow the device. The other two override it, which is what you want
+   walking a dim mechanical room at 6am with the phone set to daylight. */
+const THEMES = ["auto", "light", "dark"];
+const THEME_WORD = { auto: "Follows your device", light: "Light", dark: "Night" };
+let THEME = "auto";
+try { const t = localStorage.getItem(LS_THEME); if (THEMES.indexOf(t) >= 0) THEME = t; } catch(e){}
+
+function applyTheme(){
+  const root = document.documentElement;
+  if (THEME === "auto") root.removeAttribute("data-theme");
+  else root.setAttribute("data-theme", THEME);
+}
+function cycleTheme(){
+  THEME = THEMES[(THEMES.indexOf(THEME) + 1) % THEMES.length];
+  try { localStorage.setItem(LS_THEME, THEME); } catch(e){}
+  applyTheme();
+  renderTopbar();
+  toast(THEME === "auto" ? "Follows your device" : THEME === "dark" ? "Night mode on" : "Light mode on");
+}
+applyTheme();
 
 function save(){ DB.walkthroughs.forEach(w => { if (w._dirty) w.dirty = true; }); safeSet(LS_KEY, DB); }
 function saveRates(){ safeSet(LS_RATES, { rates: RATES, fixmin: FIXMIN }); }
@@ -649,7 +679,10 @@ const ICON = {
   down:'<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
   mail:'<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/>',
   copy:'<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>',
-  up:'<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 8l5-5 5 5"/><path d="M12 3v12"/>'
+  up:'<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 8l5-5 5 5"/><path d="M12 3v12"/>',
+  sun:'<circle cx="12" cy="12" r="4.2"/><path d="M12 1.5v2.2M12 20.3v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M1.5 12h2.2M20.3 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/>',
+  moon:'<path d="M20.5 14.6A8.6 8.6 0 019.4 3.5a8.6 8.6 0 1011.1 11.1z"/>',
+  auto:'<circle cx="12" cy="12" r="8.6"/><path d="M12 3.4a8.6 8.6 0 010 17.2z" fill="currentColor" stroke="none"/>'
 };
 const svg = (n, cls) => '<svg class="'+(cls||"")+'" viewBox="0 0 24 24" aria-hidden="true">'+ICON[n]+'</svg>';
 
@@ -676,6 +709,8 @@ function renderTopbar(){
     t.innerHTML =
       '<div class="grow"><div class="brandmark"><span class="rule"></span>Myles O\'Donnell</div>'+
       '<h1 style="font-size:24px">Bid Walkthrough</h1></div>'+
+      '<button class="iconbtn" data-act="theme" aria-label="Screen brightness: '+esc(THEME_WORD[THEME])+'">'+
+        svg(THEME === "dark" ? "moon" : THEME === "light" ? "sun" : "auto")+'</button>'+
       '<button class="iconbtn" data-go="set" aria-label="Rates and settings">'+svg("gear")+'</button>';
   } else if (view.screen === "wt"){
     const w = currentWT();
@@ -914,8 +949,8 @@ function roomDetailHTML(r){
     '<div><div class="eyebrow" style="margin-bottom:6px">Photos</div>'+
       '<div class="photos" data-photos="'+r.id+'">'+
         (r.photos||[]).map(p => '<span class="photo" data-pid="'+p+'"><img alt="Room photo" data-src="'+p+'"><button data-delphoto="'+p+'" data-rid="'+r.id+'" aria-label="Remove photo">×</button></span>').join("")+
-        '<button class="addphoto" data-act="add-photo" data-rid="'+r.id+'">'+svg("cam")+'Camera</button>'+
-        '<button class="addphoto" data-act="pick-photo" data-rid="'+r.id+'">'+svg("pic")+'Files</button>'+
+        (CAM_OK ? '<button class="addphoto" data-act="add-photo" data-rid="'+r.id+'">'+svg("cam")+'Camera</button>' : '')+
+        '<button class="addphoto" data-act="pick-photo" data-rid="'+r.id+'">'+svg("pic")+(CAM_OK ? 'Files' : 'Add')+'</button>'+
       '</div></div>'+
 
     '<div class="row" style="gap:8px">'+
@@ -1047,6 +1082,46 @@ function renderTypes(q){
 /* ============================ photos ============================ */
 
 let photoTargetRoom = null;
+
+/* Some tablets have no camera the browser will hand over. Asking one for a rear
+   camera there does nothing at all — no picker, no error — so don't offer the
+   button. Only hide it on a clear "zero cameras" answer; anything ambiguous
+   keeps it, since a missing button is worse than a redundant one. */
+let CAM_OK = true;
+let camWatch = null;
+
+/* Tapping Camera hands off to the phone's camera app, which backgrounds this page.
+   If the page never goes hidden, nothing answered — usually Chrome is denied camera
+   permission in Android settings. Say so instead of leaving a dead button. */
+function watchCameraLaunch(){
+  if (camWatch){ clearTimeout(camWatch.timer); document.removeEventListener("visibilitychange", camWatch.onHide); }
+  const w = { launched: false };
+  w.onHide = () => { if (document.hidden) w.launched = true; };
+  document.addEventListener("visibilitychange", w.onHide);
+  w.timer = setTimeout(() => {
+    document.removeEventListener("visibilitychange", w.onHide);
+    camWatch = null;
+    if (!w.launched) toast("No camera app opened. Let Chrome use the camera in your device settings, or tap Files.");
+  }, 2500);
+  camWatch = w;
+}
+function cameraDidOpen(){
+  if (!camWatch) return;
+  clearTimeout(camWatch.timer);
+  document.removeEventListener("visibilitychange", camWatch.onHide);
+  camWatch = null;
+}
+(async function detectCamera(){
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    if (!Array.isArray(devices) || !devices.length) return;
+    if (!devices.some(d => d.kind === "videoinput")) {
+      CAM_OK = false;
+      if (view.screen === "wt" && view.openRoom){ renderWT(); hydratePhotos(); }
+    }
+  } catch(e){}
+})();
 
 function downscale(file, maxDim, quality){
   return new Promise(res => {
@@ -1520,6 +1595,7 @@ document.addEventListener("click", async (e) => {
   if (!act) return;
 
   if (act === "nav-back"){ navBack(); return; }
+  if (act === "theme"){ cycleTheme(); return; }
 
   if (act === "check-update"){
     if (!("serviceWorker" in navigator)){ toast("This browser can't update in the background."); return; }
@@ -1548,7 +1624,7 @@ document.addEventListener("click", async (e) => {
     setTimeout(() => { const f = $("#f-name"); if (f) f.focus({ preventScroll:true }); }, 80);
   }
   else if (act === "add-room") openTypeSheet();
-  else if (act === "add-photo"){ photoTargetRoom = el.dataset.rid; $("#photoInput").click(); }
+  else if (act === "add-photo"){ photoTargetRoom = el.dataset.rid; $("#photoInput").click(); watchCameraLaunch(); }
   else if (act === "pick-photo"){ photoTargetRoom = el.dataset.rid; $("#photoPick").click(); }
   else if (act === "dup-room"){
     const w = currentWT(); const r = w && w.rooms.find(x => x.id === el.dataset.rid); if (!r) return;
@@ -1649,6 +1725,7 @@ $("#restoreInput").addEventListener("change", async (e) => {
 
 async function onPhotoInput(e){
   const files = Array.from(e.target.files || []);
+  if (files.length) cameraDidOpen();
   e.target.value = "";
   for (const f of files) await handlePhotoFile(f);
 }
