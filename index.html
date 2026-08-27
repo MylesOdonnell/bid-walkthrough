@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Bid Walkthrough</title>
+<title>Busy Bidder</title>
 <meta name="description" content="Walk a building, tap in each room, and get the square footage and labor hours for the bid.">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#F1F3EF" media="(prefers-color-scheme: light)">
@@ -11,7 +11,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Bid Walk">
+<meta name="apple-mobile-web-app-title" content="Busy Bidder">
 <link rel="apple-touch-icon" href="icon-180.png">
 <script>try{var t=localStorage.getItem("mod_bid_theme_v1");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
 <link rel="icon" href="icon-192.png" sizes="192x192">
@@ -708,7 +708,7 @@ function renderTopbar(){
   if (view.screen === "home"){
     t.innerHTML =
       '<div class="grow"><div class="brandmark"><span class="rule"></span>Myles O\'Donnell</div>'+
-      '<h1 style="font-size:24px">Bid Walkthrough</h1></div>'+
+      '<h1 style="font-size:24px">Busy Bidder</h1></div>'+
       '<button class="iconbtn" data-act="theme" aria-label="Screen brightness: '+esc(THEME_WORD[THEME])+'">'+
         svg(THEME === "dark" ? "moon" : THEME === "light" ? "sun" : "auto")+'</button>'+
       '<button class="iconbtn" data-go="set" aria-label="Rates and settings">'+svg("gear")+'</button>';
@@ -1034,7 +1034,7 @@ function renderSettings(){
   h += '<div class="section"><span class="eyebrow">About</span>'+
        '<p class="note" id="offlineState">Checking whether this device has the app stored for offline use…</p>'+
        '<div style="margin-top:9px"><button class="btn btn-ghost btn-sm" data-act="check-update">Check for a newer version</button></div>'+
-       '<p class="note" style="margin-top:6px">Bid Walkthrough · Myles O\'Donnell</p></div>';
+       '<p class="note" style="margin-top:6px">Busy Bidder · Myles O\'Donnell</p></div>';
   h += '<p class="note" style="margin:22px 0 40px">Changing a rate re-does the hours on every walkthrough, including ones you already sent.</p>';
   h += '</div>';
   $("#s-set").innerHTML = h;
@@ -1450,7 +1450,7 @@ function exportCSV(scope){
   list.forEach(w => w.rooms.forEach(r => rows.push(exportRow(w, r))));
   if (!rows.length){ toast("No rooms to export yet."); return; }
   const stamp = new Date().toISOString().slice(0,10);
-  const name = (scope === "all" ? "bid-walkthroughs" : slug(wtName(list[0]))) + "-" + stamp + ".csv";
+  const name = (scope === "all" ? "busy-bidder-walkthroughs" : slug(wtName(list[0]))) + "-" + stamp + ".csv";
   if (saveFile(name, toCSV(rows), "text/csv")){
     if (scope !== "all" && list[0]) markSent(list[0]);
     toast("Saved");
@@ -1478,7 +1478,7 @@ async function backupAll(){
     walkthroughs: DB.walkthroughs, rates: RATES, fixmin: FIXMIN, prefs: PREFS,
     recent: RECENT, photos: photos
   };
-  const name = "bid-walkthrough-backup-" + new Date().toISOString().slice(0,10) + ".json";
+  const name = "busy-bidder-backup-" + new Date().toISOString().slice(0,10) + ".json";
   toast(saveFile(name, JSON.stringify(payload), "application/json")
     ? "Backup saved" : "This browser wouldn't save the backup.");
 }

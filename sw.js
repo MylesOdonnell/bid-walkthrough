@@ -1,4 +1,4 @@
-/* Bid Walkthrough — keeps the whole app on the device so it opens with no signal.
+/* Busy Bidder — keeps the whole app on the device so it opens with no signal.
 
    HOW UPDATES WORK: bump VERSION below whenever index.html changes. The browser
    re-checks this file when the app launches; different bytes mean a new worker,
@@ -6,7 +6,7 @@
    the user an Update button. Old caches are dropped on activate.
 
    Forget to bump VERSION and nobody gets the update. */
-const VERSION = "bw-2026-08-27-9";
+const VERSION = "bb-2026-08-27-10";
 const SHELL   = "shell-" + VERSION;
 const FONTS   = "fonts-v1";
 

@@ -1,4 +1,4 @@
-# Bid Walkthrough — standalone app
+# Busy Bidder — standalone app
 
 A complete, self-contained web app. No Claude account, no install from a store, no server
 behind it. Put these files on any web host and it becomes an installable app on any phone.

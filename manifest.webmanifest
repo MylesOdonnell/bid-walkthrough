@@ -1,6 +1,6 @@
 {
-  "name": "Bid Walkthrough",
-  "short_name": "Bid Walk",
+  "name": "Busy Bidder",
+  "short_name": "Busy Bidder",
   "description": "Walk a building, tap in each room, and get the square footage and labor hours for the bid.",
   "start_url": "./",
   "scope": "./",
