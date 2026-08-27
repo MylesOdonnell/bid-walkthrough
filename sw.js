@@ -6,7 +6,7 @@
    the user an Update button. Old caches are dropped on activate.
 
    Forget to bump VERSION and nobody gets the update. */
-const VERSION = "bw-2026-08-26-8";
+const VERSION = "bw-2026-08-27-9";
 const SHELL   = "shell-" + VERSION;
 const FONTS   = "fonts-v1";
 
@@ -16,6 +16,7 @@ const SHELL_FILES = [
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png",
+  "./icon-maskable-512.png",
   "./icon-180.png",
   "./favicon-32.png"
 ];
