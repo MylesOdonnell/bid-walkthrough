@@ -228,6 +228,8 @@ label.field > span{font-size:13px; font-weight:600; color:var(--ink-2); letter-s
 .fix{display:flex; align-items:center; gap:10px; border:1px solid var(--line); background:var(--surface-2); border-radius:var(--r); padding:5px 6px 5px 12px}
 .fix .fl{flex:1; min-width:0; font-size:14px; font-weight:500; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .fix .fv{width:30px; text-align:center; font-weight:700; font-variant-numeric:tabular-nums; border-top:1px solid var(--line-strong); border-bottom:1px solid var(--line-strong); align-self:stretch; display:grid; place-items:center; background:var(--surface)}
+input.fv{width:52px; min-height:0; padding:0 2px; border-radius:0; border-left:0; border-right:0; -moz-appearance:textfield}
+input.fv::-webkit-outer-spin-button, input.fv::-webkit-inner-spin-button{-webkit-appearance:none; margin:0}
 .fix .stepper{display:flex; align-items:stretch; flex:none}
 .stp{width:34px; height:36px; border:1px solid var(--line-strong); background:var(--surface); font-size:19px; font-weight:600; line-height:1; display:grid; place-items:center; color:var(--ink-2)}
 .stp:first-child{border-radius:8px 0 0 8px}
@@ -324,6 +326,13 @@ details.more[open] > summary .caret{transform:rotate(180deg)}
   :root:not([data-theme="light"]) #updateBar{color:#08201F}
   :root:not([data-theme="light"]) #updateBar button{background:#08201F; color:var(--accent)}
 }
+.kindtag{
+  flex:none; align-self:flex-start; font-family:"Barlow Condensed",sans-serif; font-weight:700;
+  font-size:11px; letter-spacing:.1em; text-transform:uppercase; padding:2px 8px;
+  border-radius:999px; border:1px solid var(--line-strong); color:var(--muted); background:var(--surface-2);
+}
+.kindtag.k-window{color:var(--accent-ink); border-color:color-mix(in srgb, var(--accent) 45%, transparent); background:var(--accent-soft)}
+.kindtag.k-floor{color:var(--warn); border-color:color-mix(in srgb, var(--warn) 45%, transparent); background:color-mix(in srgb, var(--warn) 12%, transparent)}
 .scrollx{overflow-x:auto}
 @media (prefers-reduced-motion:reduce){*{transition:none !important; animation:none !important}}
 </style>
@@ -492,18 +501,131 @@ const FLOORS_MORE = ["Porcelain tile","Bare concrete","Epoxy","Hardwood","Lamina
   "Terrazzo","Quarry tile","Walk-off mat","Mixed","None / N/A"];
 const FLOORS = FLOORS_COMMON.concat(FLOORS_MORE);
 
-const FREQS_COMMON = [
-  ["5","5x / week",5],["4","4x / week",4],["3","3x / week",3],
-  ["2","2x / week",2],["1","1x / week",1],["bw","Every other week",0.5]
+const FREQS = [
+  ["7","7x / week",364],["6","6x / week",312],["5","5x / week",260],["4","4x / week",208],
+  ["3","3x / week",156],["2","2x / week",104],["1","1x / week",52],
+  ["bw","Every other week",26],["mo","Monthly",12],["qtr","Quarterly",4],
+  ["semi","2x / year",2],["yr","Once a year",1],["once","One time",1],["asneeded","As needed",0]
 ];
-const FREQS_MORE = [
-  ["7","7x / week",7],["6","6x / week",6],["mo","Monthly",0.2308],
-  ["qtr","Quarterly",0.0769],["asneeded","As needed",0]
-];
-const FREQS = FREQS_COMMON.concat(FREQS_MORE);
-const FREQ_LABEL = {}; const FREQ_PER_WEEK = {};
-FREQS.forEach(([id,label,per]) => { FREQ_LABEL[id]=label; FREQ_PER_WEEK[id]=per; });
+const FREQ_LABEL = {}; const FREQ_PER_YEAR = {}; const FREQ_PER_WEEK = {};
+FREQS.forEach(([id,label,per]) => {
+  FREQ_LABEL[id] = label; FREQ_PER_YEAR[id] = per; FREQ_PER_WEEK[id] = per / 52;
+});
 const WEEKS_PER_MONTH = 4.333;
+
+/* Which schedules lead, by job type. Recurring janitorial thinks in weeks;
+   glass and floor work think in months and years. */
+const FREQ_SETS = {
+  janitorial: { common:["5","4","3","2","1","bw"],          more:["7","6","mo","qtr","asneeded"] },
+  window:     { common:["mo","qtr","semi","yr","once","bw"], more:["1","2","5","asneeded"] },
+  floor:      { common:["once","qtr","semi","yr","mo","bw"], more:["1","2","asneeded"] }
+};
+const DEFAULT_FREQ = { janitorial:"5", window:"qtr", floor:"once" };
+function freqChips(kind, which){
+  const set = FREQ_SETS[kind] || FREQ_SETS.janitorial;
+  return set[which].map(id => [id, FREQ_LABEL[id]]);
+}
+
+/* ============================ the three job types ============================ */
+
+const KINDS = {
+  janitorial: {
+    badge:"Janitorial", noun:"walkthrough", nounPlural:"walkthroughs",
+    newLabel:"Start a new walkthrough", itemWord:"Rooms", addLabel:"Add a room",
+    pickTitle:"Add a room", searchPlaceholder:"Search room types\u2026",
+    reportTitle:"BID WALKTHROUGH", subject:"Bid walkthrough"
+  },
+  window: {
+    badge:"Windows", noun:"window quote", nounPlural:"window quotes",
+    newLabel:"Start a new window quote", itemWord:"Glass", addLabel:"Add glass",
+    pickTitle:"Add glass", searchPlaceholder:"Search glass types\u2026",
+    reportTitle:"WINDOW QUOTE", subject:"Window quote"
+  },
+  floor: {
+    badge:"Floors", noun:"floor quote", nounPlural:"floor quotes",
+    newLabel:"Start a new floor quote", itemWord:"Areas", addLabel:"Add an area",
+    pickTitle:"Add an area", searchPlaceholder:"Search areas\u2026",
+    reportTitle:"FLOOR QUOTE", subject:"Floor quote"
+  }
+};
+const KIND_ORDER = ["janitorial","window","floor"];
+function kindOf(w){ return KINDS[w && w.kind] ? w.kind : "janitorial"; }
+
+/* ============================ glass ============================ */
+
+const WINDOW_CATEGORIES = [
+  ["Storefront & Entry", [
+    ["storefront","Storefront glass"],["entry_door","Entry door glass"],["sidelite","Sidelite"],
+    ["transom","Transom"],["vestibule_glass","Vestibule glass"]
+  ]],
+  ["Standard Windows", [
+    ["standard","Standard pane"],["large_pane","Large / plate pane"],["french","French / multi-lite"],
+    ["casement","Casement"],["slider","Slider"],["double_hung","Double hung"]
+  ]],
+  ["Interior Glass", [
+    ["partition","Interior partition"],["office_front","Office front"],["interior_door","Interior door glass"],
+    ["mirror_glass","Mirror"],["display_case","Display case"],["glass_rail","Glass railing"]
+  ]],
+  ["Hard to Reach", [
+    ["high_glass","High glass (ladder)"],["skylight","Skylight"],["atrium_glass","Atrium / clerestory"],
+    ["curtain_wall","Curtain wall panel"]
+  ]],
+  ["Extras", [
+    ["screen","Window screens"],["track","Tracks & sills"],["other_glass","Other glass"]
+  ]]
+];
+const GLASS_NAME = {}; const GLASS_ORDER = [];
+WINDOW_CATEGORIES.forEach(([,list]) => list.forEach(([id,name]) => { GLASS_NAME[id]=name; GLASS_ORDER.push(id); }));
+
+/* minutes per pane, inside and out, working from the ground */
+const DEFAULT_GLASS_MIN = {
+  storefront:2, entry_door:2, sidelite:1.5, transom:1.5, vestibule_glass:2,
+  standard:2.5, large_pane:4, french:6, casement:3, slider:3, double_hung:3.5,
+  partition:2, office_front:2.5, interior_door:1.5, mirror_glass:1.5, display_case:2.5, glass_rail:2,
+  high_glass:5, skylight:8, atrium_glass:6, curtain_wall:4,
+  screen:1.5, track:1, other_glass:3
+};
+
+const SIDES = [["both","Inside & out",1],["out","Outside only",0.6],["in","Inside only",0.55]];
+const SIDES_LABEL = {}; const SIDES_FACTOR = {};
+SIDES.forEach(([id,label,f]) => { SIDES_LABEL[id]=label; SIDES_FACTOR[id]=f; });
+
+const ACCESS = [
+  ["ground","Ground level",1],["pole","Water-fed pole",0.85],["step","Step ladder",1.25],
+  ["ext","Extension ladder",1.7],["lift","Lift or boom",2.2],["rope","Rope / high-rise",2.6]
+];
+const ACCESS_LABEL = {}; const ACCESS_FACTOR = {};
+ACCESS.forEach(([id,label,f]) => { ACCESS_LABEL[id]=label; ACCESS_FACTOR[id]=f; });
+
+/* ============================ floor work ============================ */
+
+const FLOOR_SERVICES = [
+  ["Hard floor", [
+    ["autoscrub","Auto-scrub (ride-on)",25000],["scrub","Machine scrub",12000],
+    ["burnish","Burnish / high-speed",9000],["spraybuff","Spray buff",3500],
+    ["recoat","Top scrub & recoat",900],["strip","Strip & wax",400],
+    ["seal_vct","Seal & finish (bare floor)",600]
+  ]],
+  ["Carpet", [
+    ["extract","Hot-water extraction",1200],["encap","Encapsulation",2200],
+    ["bonnet","Bonnet clean",2500],["shampoo","Shampoo",1800],["spot","Spot treatment",4000],
+    ["detail_vac","Detail vacuum & edge",6000]
+  ]],
+  ["Tile, stone & concrete", [
+    ["tile_grout","Tile & grout deep clean",300],["grout_seal","Grout sealing",700],
+    ["concrete_polish","Concrete polish",250],["concrete_seal","Concrete seal",1500],
+    ["stone_hone","Stone hone & polish",300]
+  ]],
+  ["Other", [
+    ["hardwood_recoat","Hardwood screen & recoat",600],["pressure_wash","Pressure wash",2500],
+    ["other_floor","Other floor work",1500]
+  ]]
+];
+const FLOOR_SERVICE_NAME = {}; const DEFAULT_FLOOR_RATES = {}; const FLOOR_SERVICE_ORDER = [];
+FLOOR_SERVICES.forEach(([,list]) => list.forEach(([id,name,rate]) => {
+  FLOOR_SERVICE_NAME[id]=name; DEFAULT_FLOOR_RATES[id]=rate; FLOOR_SERVICE_ORDER.push(id);
+}));
+const FLOOR_COMMON = ["scrub","extract","strip","recoat","burnish","tile_grout"];
 </script>
 
 <script>
@@ -530,7 +652,11 @@ let DB = safeGet(LS_KEY, { walkthroughs: [] });
 if (!DB || !Array.isArray(DB.walkthroughs)) DB = { walkthroughs: [] };
 let RATES = Object.assign({}, DEFAULT_RATES, safeGet(LS_RATES, {}).rates || {});
 let FIXMIN = Object.assign({}, DEFAULT_FIXTURE_MIN, safeGet(LS_RATES, {}).fixmin || {});
-let RECENT = safeGet(LS_RECENT, []);
+let GLASSMIN = Object.assign({}, DEFAULT_GLASS_MIN, safeGet(LS_RATES, {}).glassmin || {});
+let FLOORRATE = Object.assign({}, DEFAULT_FLOOR_RATES, safeGet(LS_RATES, {}).floorrate || {});
+let RECENT = safeGet(LS_RECENT, {});
+if (Array.isArray(RECENT)) RECENT = { janitorial: RECENT };
+KIND_ORDER.forEach(k => { if (!Array.isArray(RECENT[k])) RECENT[k] = []; });
 let PREFS = Object.assign({ sendTo: "" }, safeGet(LS_PREFS, {}));
 
 /* auto = follow the device. The other two override it, which is what you want
@@ -555,8 +681,8 @@ function cycleTheme(){
 applyTheme();
 
 function save(){ DB.walkthroughs.forEach(w => { if (w._dirty) w.dirty = true; }); safeSet(LS_KEY, DB); }
-function saveRates(){ safeSet(LS_RATES, { rates: RATES, fixmin: FIXMIN }); }
-function saveRecent(){ safeSet(LS_RECENT, RECENT.slice(0,8)); }
+function saveRates(){ safeSet(LS_RATES, { rates: RATES, fixmin: FIXMIN, glassmin: GLASSMIN, floorrate: FLOORRATE }); }
+function saveRecent(){ KIND_ORDER.forEach(k => { RECENT[k] = (RECENT[k]||[]).slice(0,8); }); safeSet(LS_RECENT, RECENT); }
 function savePrefs(){ safeSet(LS_PREFS, PREFS); }
 
 function uid(){ return Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
@@ -599,12 +725,13 @@ async function delPhoto(id){
 
 /* ============================ model ============================ */
 
-function newWalkthrough(){
+function newWalkthrough(kind){
+  kind = KINDS[kind] ? kind : "janitorial";
   return {
-    id: uid(), name: "", createdAt: nowISO(), updatedAt: nowISO(),
+    id: uid(), kind: kind, name: "", createdAt: nowISO(), updatedAt: nowISO(),
     contactName:"", contactPhone:"", contactEmail:"", address:"",
     buildingSqft:"", floors:"", occupants:"", incumbent:"", bidDue:"", siteNotes:"",
-    defaultFreq: "5", rooms: [], sentAt: null
+    defaultFreq: DEFAULT_FREQ[kind], rooms: [], sentAt: null
   };
 }
 function newRoom(typeId, freq){
@@ -612,12 +739,22 @@ function newRoom(typeId, freq){
   return {
     id: uid(), type: typeId, label: "",
     len:"", wid:"", sqft:"", floor:"", freq: freq || "5",
-    fixtures:{}, notes:"", photos:[], _hint:hint
+    service:"", coats:1, fixtures:{}, notes:"", photos:[], _hint:hint
   };
+}
+function newGlass(typeId){
+  return {
+    id: uid(), type: typeId, label: "",
+    len:"", wid:"", count:1, sides:"both", access:"ground",
+    notes:"", photos:[]
+  };
+}
+function itemName(w, item){
+  return kindOf(w) === "window" ? (GLASS_NAME[item.type] || "Glass") : (TYPE_NAME[item.type] || "Room");
 }
 function roomLabel(w, room){
   if (room.label) return room.label;
-  const base = TYPE_NAME[room.type] || "Room";
+  const base = itemName(w, room);
   const same = w.rooms.filter(r => r.type === room.type);
   if (same.length < 2) return base;
   return base + " " + (same.indexOf(room) + 1);
@@ -633,6 +770,27 @@ function roomSqft(r){
   if (!isNaN(l) && !isNaN(wd)) return l * wd;
   return 0;
 }
+function paneCount(g){
+  const n = parseInt(g.count, 10);
+  return isNaN(n) || n < 0 ? 0 : n;
+}
+function glassSqft(g){
+  const l = parseFloat(g.len), wd = parseFloat(g.wid);
+  if (isNaN(l) || isNaN(wd)) return 0;
+  return l * wd * paneCount(g);
+}
+function glassHours(g){
+  const per = GLASSMIN[g.type] != null ? GLASSMIN[g.type] : (DEFAULT_GLASS_MIN.other_glass || 3);
+  const sides = SIDES_FACTOR[g.sides] != null ? SIDES_FACTOR[g.sides] : 1;
+  const access = ACCESS_FACTOR[g.access] != null ? ACCESS_FACTOR[g.access] : 1;
+  return paneCount(g) * per * sides * access / 60;
+}
+function floorHours(r){
+  const rate = FLOORRATE[r.service];
+  if (!rate || rate <= 0) return 0;
+  const coats = Math.max(1, parseInt(r.coats, 10) || 1);
+  return roomSqft(r) / rate * coats;
+}
 function roomHoursPerVisit(r){
   const sq = roomSqft(r);
   const rate = RATES[r.type] || DEFAULT_RATES.other;
@@ -644,15 +802,38 @@ function roomHoursPerVisit(r){
   }
   return h + mins / 60;
 }
+/* One entry point so every screen asks the same question of any item. */
+function itemHours(w, item){
+  const k = kindOf(w);
+  return k === "window" ? glassHours(item) : k === "floor" ? floorHours(item) : roomHoursPerVisit(item);
+}
+function itemSqft(w, item){
+  return kindOf(w) === "window" ? glassSqft(item) : roomSqft(item);
+}
 function totals(w){
-  let sqft = 0, week = 0, fullVisit = 0;
-  w.rooms.forEach(r => {
-    const per = roomHoursPerVisit(r);
-    sqft += roomSqft(r);
-    fullVisit += per;
-    week += per * (FREQ_PER_WEEK[r.freq] != null ? FREQ_PER_WEEK[r.freq] : 0);
+  const kind = kindOf(w);
+  const acct = w.defaultFreq || DEFAULT_FREQ[kind];
+  let sqft = 0, visit = 0, year = 0, panes = 0;
+
+  w.rooms.forEach(item => {
+    const hrs = itemHours(w, item);
+    sqft += itemSqft(w, item);
+    visit += hrs;
+    if (kind === "window"){
+      panes += paneCount(item);
+      year += hrs * (FREQ_PER_YEAR[acct] || 0);
+    } else {
+      const f = kind === "floor" ? (item.freq || acct) : item.freq;
+      year += hrs * (FREQ_PER_YEAR[f] != null ? FREQ_PER_YEAR[f] : 0);
+    }
   });
-  return { sqft, week, month: week * WEEKS_PER_MONTH, fullVisit, rooms: w.rooms.length };
+
+  const week = year / 52;
+  return {
+    kind, sqft, panes, week, month: week * WEEKS_PER_MONTH, year,
+    visit, fullVisit: visit, rooms: w.rooms.length,
+    once: (kind !== "janitorial") && (acct === "once")
+  };
 }
 function fmtNum(n, dp){
   if (!isFinite(n)) return "—";
@@ -682,6 +863,8 @@ const ICON = {
   up:'<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 8l5-5 5 5"/><path d="M12 3v12"/>',
   sun:'<circle cx="12" cy="12" r="4.2"/><path d="M12 1.5v2.2M12 20.3v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M1.5 12h2.2M20.3 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/>',
   moon:'<path d="M20.5 14.6A8.6 8.6 0 019.4 3.5a8.6 8.6 0 1011.1 11.1z"/>',
+  glass:'<rect x="3" y="3" width="18" height="18" rx="1.5"/><path d="M12 3v18M3 12h18"/>',
+  floor:'<path d="M2 20h20M4.5 20l3-9h9l3 9M7.9 14.2h8.2"/><path d="M9.2 11l-1.6 9M14.8 11l1.6 9"/>',
   auto:'<circle cx="12" cy="12" r="8.6"/><path d="M12 3.4a8.6 8.6 0 010 17.2z" fill="currentColor" stroke="none"/>'
 };
 const svg = (n, cls) => '<svg class="'+(cls||"")+'" viewBox="0 0 24 24" aria-hidden="true">'+ICON[n]+'</svg>';
@@ -707,7 +890,7 @@ function renderTopbar(){
   const t = $("#topbar");
   if (view.screen === "home"){
     t.innerHTML =
-      '<div class="grow"><div class="brandmark"><span class="rule"></span>Myles O\'Donnell</div>'+
+      '<div class="grow"><div class="brandmark"><span class="rule"></span>Myles O\'Donnell &amp; Co.</div>'+
       '<h1 style="font-size:24px">Busy Bidder</h1></div>'+
       '<button class="iconbtn" data-act="theme" aria-label="Screen brightness: '+esc(THEME_WORD[THEME])+'">'+
         svg(THEME === "dark" ? "moon" : THEME === "light" ? "sun" : "auto")+'</button>'+
@@ -732,25 +915,44 @@ function renderHome(){
   const unsent = list.filter(w => !w.sentAt || w.dirty).length;
   let h = '<div class="wrap">';
 
-  h += '<div class="section"><button class="btn btn-primary btn-block" data-act="new">'+svg("plus")+'Start a new walkthrough</button></div>';
+  h += '<div class="section"><div class="stack-sm">'+
+       '<button class="btn btn-primary btn-block" data-act="new" data-kind="janitorial">'+svg("plus")+'Start a new walkthrough</button>'+
+       '<button class="btn btn-ghost btn-block" data-act="new" data-kind="window">'+svg("glass")+'Start a new window quote</button>'+
+       '<button class="btn btn-ghost btn-block" data-act="new" data-kind="floor">'+svg("floor")+'Start a new floor quote</button>'+
+       '</div></div>';
 
   if (!list.length){
-    h += '<div class="empty"><h3>No walkthroughs yet</h3><p class="note">Start one when you pull up to the building. '+
-         'Add the account name, then tap in each room as you walk it. Everything saves on this phone — no signal needed.</p></div>';
+    h += '<div class="empty"><h3>Nothing quoted yet</h3><p class="note">Start one when you pull up to the building. '+
+         'Add the account name, then tap it in as you walk. Everything saves on this phone — no signal needed.</p></div>';
   } else {
-    h += '<div class="section"><div class="section-head"><span class="eyebrow">Walkthroughs</span>'+
+    h += '<div class="section"><div class="section-head"><span class="eyebrow">Quotes</span>'+
          (unsent ? '<span class="pill warn"><span class="dot"></span>'+unsent+' not sent</span>' : '<span class="pill ok"><span class="dot"></span>All sent</span>')+
          '</div><div class="stack">';
     list.forEach(w => {
       const t = totals(w);
+      const kind = kindOf(w);
       const sent = (w.sentAt && !w.dirty) ? "yes" : "no";
-      h += '<button class="wt-item" data-open="'+w.id+'" data-synced="'+sent+'">'+
+      let meta;
+      if (kind === "window"){
+        meta = '<span><b>'+fmtNum(t.panes)+'</b> panes</span>'+
+               '<span><b>'+fmtNum(t.sqft)+'</b> sq ft glass</span>'+
+               '<span><b>'+fmtHrs(t.visit)+'</b> hrs/visit</span>';
+      } else if (kind === "floor"){
+        meta = '<span><b>'+t.rooms+'</b> areas</span>'+
+               '<span><b>'+fmtNum(t.sqft)+'</b> sq ft</span>'+
+               '<span><b>'+fmtHrs(t.visit)+'</b> hrs/job</span>';
+      } else {
+        meta = '<span><b>'+t.rooms+'</b> rooms</span>'+
+               '<span><b>'+fmtNum(t.sqft)+'</b> sq ft</span>'+
+               '<span><b>'+fmtHrs(t.month)+'</b> hrs/mo</span>';
+      }
+      h += '<button class="wt-item" data-open="'+w.id+'" data-synced="'+sent+'" data-kind="'+kind+'">'+
            '<span class="wt-rail"></span><span class="wt-body">'+
-           '<span class="wt-name">'+esc(wtName(w))+'</span>'+
-           '<span class="wt-meta">'+
-             '<span><b>'+t.rooms+'</b> rooms</span>'+
-             '<span><b>'+fmtNum(t.sqft)+'</b> sq ft</span>'+
-             '<span><b>'+fmtHrs(t.month)+'</b> hrs/mo</span>'+
+           '<span class="row" style="gap:8px">'+
+             '<span class="wt-name grow">'+esc(wtName(w))+'</span>'+
+             '<span class="kindtag k-'+kind+'">'+esc(KINDS[kind].badge)+'</span>'+
+           '</span>'+
+           '<span class="wt-meta">'+ meta +
              '<span>'+esc(shortDate(w.updatedAt))+'</span>'+
            '</span></span></button>';
     });
@@ -759,12 +961,12 @@ function renderHome(){
 
   if (list.length){
     h += '<div class="section">'+
-         '<button class="btn btn-ghost btn-block" data-act="export-all">'+svg("down")+'Save every walkthrough as one spreadsheet</button>'+
+         '<button class="btn btn-ghost btn-block" data-act="export-all">'+svg("down")+'Save everything as one spreadsheet</button>'+
          '</div>';
   }
 
   h += '<p class="note" style="margin:26px 0 34px">Works with no signal once the page is open. '+
-       'Everything you type is saved on this phone the moment you type it. Open a walkthrough and tap the envelope to send it out.</p>';
+       'Everything you type is saved on this phone the moment you type it. Open a quote and tap the envelope to send it out.</p>';
   h += '</div>';
   $("#s-home").innerHTML = h;
 }
@@ -786,18 +988,21 @@ function shortDate(iso){
 function renderWT(){
   const w = currentWT();
   if (!w){ goHomeReplacing(); return; }
+  const kind = kindOf(w);
+  const K = KINDS[kind];
   const t = totals(w);
   let h = '<div class="wrap">';
 
   h += '<div class="section" style="margin-top:14px">'+
        '<label class="field"><span>Account name</span>'+
        '<input id="f-name" data-wt="name" value="'+esc(w.name)+'" placeholder="Who are you bidding?" autocomplete="off"></label>'+
+       '<span class="kindtag k-'+kind+'" style="margin-top:2px">'+esc(K.badge)+'</span>'+
        '</div>';
 
   h += '<div class="card" style="padding:13px 14px; margin-bottom:12px">'+
-       chipBlock("Service frequency","wtfreq","wt",
-         FREQS_COMMON.map(f => [f[0],f[1]]), FREQS_MORE.map(f => [f[0],f[1]]),
-         w.defaultFreq || "5", "Other schedules")+
+       chipBlock(kind === "janitorial" ? "Service frequency" : "How often", "wtfreq", "wt",
+         freqChips(kind, "common"), freqChips(kind, "more"),
+         w.defaultFreq || DEFAULT_FREQ[kind], "Other schedules")+
        '<p class="note" style="margin-top:7px">New rooms start here — override any room on its own.</p>'+
        '<div id="freqApply">'+freqApplyHTML(w)+'</div>'+
        '</div>';
@@ -826,29 +1031,33 @@ function renderWT(){
        '<label class="field"><span>Site notes</span><textarea data-wt="siteNotes" placeholder="Access, alarm code, dock hours, anything the crew needs to know">'+esc(w.siteNotes)+'</textarea></label>'+
        '</div></details>';
 
-  h += '<div class="section"><div class="section-head"><span class="eyebrow">Rooms</span>'+
+  h += '<div class="section"><div class="section-head"><span class="eyebrow">'+esc(K.itemWord)+'</span>'+
        '<span class="note num">'+t.rooms+' added</span></div>';
   if (!w.rooms.length){
-    h += '<div class="empty"><h3>Nothing walked yet</h3><p class="note">Tap <b>Add a room</b> and pick what you\'re standing in.</p></div>';
+    h += '<div class="empty"><h3>Nothing added yet</h3><p class="note">Tap <b>'+esc(K.addLabel)+'</b> and pick what you\'re looking at.</p></div>';
   } else {
     h += '<div class="stack" id="roomlist">'+ w.rooms.map((r,i) => roomHTML(w,r,i)).join("") +'</div>';
   }
   h += '</div>';
 
   h += '<div class="section"><div class="stack-sm">'+
-       '<button class="btn btn-solid btn-block" data-act="email" data-wtid="'+w.id+'">'+svg("mail")+'Send this walkthrough</button>'+
-       '<button class="btn btn-ghost btn-block" data-act="nav-back">Done for now — back to all walkthroughs</button>'+
+       '<button class="btn btn-solid btn-block" data-act="email" data-wtid="'+w.id+'">'+svg("mail")+'Send this '+esc(K.noun)+'</button>'+
+       '<button class="btn btn-ghost btn-block" data-act="nav-back">Done for now — back to the list</button>'+
        '</div>'+
        '<p class="note" style="margin-top:8px">Nothing to save. Every word is written to this phone as you type it.</p>'+
        (w.sentAt ? '<p class="note" style="margin-top:6px">Last sent '+esc(shortDate(w.sentAt))+(w.dirty?' — edited since':'')+'.</p>' : '')+
        '</div>';
 
-  h += '<div class="section" style="align-items:center"><button class="btn btn-sm" style="color:var(--crit);font-weight:600" data-act="del-wt">Delete this walkthrough</button></div>';
+  h += '<div class="section" style="align-items:center"><button class="btn btn-sm" style="color:var(--crit);font-weight:600" data-act="del-wt">Delete this '+esc(K.noun)+'</button></div>';
   h += '</div>';
 
-  h += '<div class="bottombar"><div class="wrap"><button class="btn btn-primary btn-block" data-act="add-room">'+svg("plus")+'Add a room</button></div></div>';
+  h += '<div class="bottombar"><div class="wrap"><button class="btn btn-primary btn-block" data-act="add-room">'+svg("plus")+esc(K.addLabel)+'</button></div></div>';
 
   $("#s-wt").innerHTML = h;
+  if (view.openRoom){
+    const open = w.rooms.find(r => r.id === view.openRoom);
+    if (open) fillDetailValues(open);
+  }
 
   function field(key,label,ph,type){
     return '<label class="field"><span>'+esc(label)+'</span><input data-wt="'+key+'" type="'+(type||"text")+'" value="'+esc(w[key])+'" placeholder="'+esc(ph||"")+'" autocomplete="off"></label>';
@@ -856,16 +1065,28 @@ function renderWT(){
 }
 
 function freqApplyHTML(w){
-  const off = w.rooms.filter(r => r.freq !== (w.defaultFreq || "5")).length;
+  if (kindOf(w) === "window") return "";
+  const off = w.rooms.filter(r => r.freq !== (w.defaultFreq || DEFAULT_FREQ[kindOf(w)])).length;
   if (!off) return "";
   return '<button class="btn btn-ghost btn-sm" style="margin-top:9px" data-act="apply-freq">'+
-    'Put '+off+' room'+(off>1?"s":"")+' on '+esc(FREQ_LABEL[w.defaultFreq || "5"])+' too</button>';
+    'Put '+off+' '+(off>1?"more on ":"on ")+esc(FREQ_LABEL[w.defaultFreq || DEFAULT_FREQ[kindOf(w)]])+' too</button>';
 }
 function patchFreqApply(){
   const w = currentWT(); if (!w) return;
   const el = $("#freqApply"); if (el) el.innerHTML = freqApplyHTML(w);
 }
 function totalsInner(t){
+  if (t.kind === "window"){
+    return '<div class="tot"><span class="k">Panes</span><span class="v">'+fmtNum(t.panes)+'</span></div>'+
+           '<div class="tot"><span class="k">Sq ft glass</span><span class="v">'+fmtNum(t.sqft)+'</span></div>'+
+           '<div class="tot hl"><span class="k">Hrs / visit</span><span class="v">'+fmtHrs(t.visit)+'</span></div>';
+  }
+  if (t.kind === "floor"){
+    return '<div class="tot"><span class="k">Sq ft</span><span class="v">'+fmtNum(t.sqft)+'</span></div>'+
+           '<div class="tot hl"><span class="k">Hrs / job</span><span class="v">'+fmtHrs(t.visit)+'</span></div>'+
+           '<div class="tot"><span class="k">'+(t.once ? "One time" : "Hrs / year")+'</span>'+
+             '<span class="v">'+(t.once ? "—" : fmtHrs(t.year))+'</span></div>';
+  }
   return '<div class="tot"><span class="k">Sq ft</span><span class="v">'+fmtNum(t.sqft)+'</span></div>'+
          '<div class="tot"><span class="k">Hrs / week</span><span class="v">'+fmtHrs(t.week)+'</span></div>'+
          '<div class="tot hl"><span class="k">Hrs / month</span><span class="v">'+fmtHrs(t.month)+'</span></div>';
@@ -877,26 +1098,48 @@ function patchTotals(){
 
 /* ---------- one room ---------- */
 
+function hoursLabel(kind){ return kind === "floor" ? "min / job" : "min / visit"; }
+
 function roomHTML(w, r, i){
   const open = view.openRoom === r.id;
+  const kind = kindOf(w);
   return '<div class="room'+(open?" open":"")+'" data-room="'+r.id+'">'+
     '<button class="room-head" data-toggle="'+r.id+'" aria-expanded="'+open+'">'+
       '<span class="room-idx num">'+(i+1)+'</span>'+
       '<span class="grow">'+
         '<span class="room-title" style="display:block">'+esc(roomLabel(w,r))+'</span>'+
-        '<span class="room-sub" data-sub="'+r.id+'">'+roomSubHTML(r)+'</span>'+
+        '<span class="room-sub" data-sub="'+r.id+'">'+roomSubHTML(r,w)+'</span>'+
       '</span>'+
-      '<span class="room-hrs"><span class="n" data-hrs="'+r.id+'">'+fmtNum(roomHoursPerVisit(r)*60,0)+'</span><br><span class="l">min / visit</span></span>'+
+      '<span class="room-hrs"><span class="n" data-hrs="'+r.id+'">'+fmtNum(itemHours(w,r)*60,0)+'</span><br><span class="l">'+hoursLabel(kind)+'</span></span>'+
       '<svg class="caret" viewBox="0 0 24 24" aria-hidden="true">'+ICON.chev+'</svg>'+
     '</button>'+
-    (open ? roomDetailHTML(r) : "") +
+    (open ? roomDetailHTML(r, w) : "") +
   '</div>';
 }
-function roomSubHTML(r){
+function roomSubHTML(r, w){
+  w = w || currentWT();
+  const kind = kindOf(w);
   const parts = [];
+
+  if (kind === "window"){
+    parts.push(paneCount(r) + (paneCount(r) === 1 ? " pane" : " panes"));
+    const gs = glassSqft(r);
+    if (gs) parts.push(fmtNum(gs) + " sq ft glass");
+    parts.push(SIDES_LABEL[r.sides] || "");
+    if (r.access && r.access !== "ground") parts.push(ACCESS_LABEL[r.access] || "");
+    if (r.photos && r.photos.length) parts.push(r.photos.length + (r.photos.length===1?" photo":" photos"));
+    return parts.filter(Boolean).map(x => "<span>"+esc(x)+"</span>").join("");
+  }
+
   const sq = roomSqft(r);
   parts.push(sq ? fmtNum(sq)+" sq ft" : "no sq ft yet");
-  if (r.floor) parts.push(esc(r.floor));
+  if (kind === "floor"){
+    parts.push(r.service ? FLOOR_SERVICE_NAME[r.service] : "pick a service");
+    if (r.floor) parts.push(r.floor);
+    if ((parseInt(r.coats,10) || 1) > 1) parts.push((parseInt(r.coats,10)) + " passes");
+  } else {
+    if (r.floor) parts.push(r.floor);
+  }
   parts.push(FREQ_LABEL[r.freq] || "");
   if (r.photos && r.photos.length) parts.push(r.photos.length + (r.photos.length===1?" photo":" photos"));
   return parts.filter(Boolean).map(p => "<span>"+p+"</span>").join("");
@@ -905,37 +1148,72 @@ function patchRoom(rid){
   const w = currentWT(); if (!w) return;
   const r = w.rooms.find(x => x.id === rid); if (!r) return;
   const sub = document.querySelector('[data-sub="'+rid+'"]');
-  if (sub) sub.innerHTML = roomSubHTML(r);
+  if (sub) sub.innerHTML = roomSubHTML(r, w);
   const hrs = document.querySelector('[data-hrs="'+rid+'"]');
-  if (hrs) hrs.textContent = fmtNum(roomHoursPerVisit(r)*60,0);
+  if (hrs) hrs.textContent = fmtNum(itemHours(w,r)*60,0);
   patchTotals();
 }
 
-function roomDetailHTML(r){
+function roomDetailHTML(r, w){
+  w = w || currentWT();
+  const kind = kindOf(w);
+  return kind === "window" ? glassDetailHTML(r, w)
+       : kind === "floor"   ? floorDetailHTML(r, w)
+       : janitorialDetailHTML(r, w);
+}
+
+/* the notes textarea is filled in after render so quotes in the text can't break the markup */
+function fillDetailValues(r){
+  const ta = document.querySelector('textarea[data-r="notes"][data-rid="'+r.id+'"]');
+  if (ta) ta.value = r.notes || "";
+}
+
+function nameField(r, placeholder){
+  return '<label class="field"><span>Name this one (optional)</span>'+
+    '<input data-r="label" data-rid="'+r.id+'" value="'+esc(r.label)+'" placeholder="'+esc(placeholder)+'" autocomplete="off"></label>';
+}
+function measureRow(r, hint){
+  return '<div><div class="eyebrow" style="margin-bottom:6px">Measure</div>'+
+    '<div class="sqft-row">'+
+      '<label class="field"><span>Length</span><input data-r="len" data-rid="'+r.id+'" type="number" inputmode="decimal" value="'+esc(r.len)+'" placeholder="ft"></label>'+
+      '<span class="x">×</span>'+
+      '<label class="field"><span>Width</span><input data-r="wid" data-rid="'+r.id+'" type="number" inputmode="decimal" value="'+esc(r.wid)+'" placeholder="ft"></label>'+
+      '<span class="x">=</span>'+
+      '<label class="field"><span>Sq ft</span><input data-r="sqft" data-rid="'+r.id+'" type="number" inputmode="numeric" class="num" style="text-align:right;font-weight:700" value="'+esc(r.sqft)+'" placeholder="0"></label>'+
+    '</div>'+
+    '<p class="note" style="margin-top:5px">'+esc(hint)+'</p>'+
+  '</div>';
+}
+function counterRow(r, key, label, min){
+  const val = (r[key] == null || r[key] === "") ? (min || 0) : r[key];
+  return '<div class="fix" data-cnt="'+key+'" data-rid="'+r.id+'" data-min="'+(min||0)+'">'+
+    '<span class="fl">'+esc(label)+'</span>'+
+    '<span class="stepper">'+
+      '<button class="stp" data-step="-1" aria-label="Fewer '+esc(label)+'">−</button>'+
+      '<input class="fv num" type="number" inputmode="numeric" data-r="'+key+'" data-rid="'+r.id+'" '+
+        'value="'+esc(val)+'" aria-label="'+esc(label)+'">'+
+      '<button class="stp" data-step="1" aria-label="More '+esc(label)+'">+</button>'+
+    '</span>'+
+  '</div>';
+}
+
+/* ---------------- janitorial ---------------- */
+
+function janitorialDetailHTML(r, w){
+  const notePlaceholder = "Condition, problem spots, what the customer complained about";
   const hint = (FIXTURE_HINT[r.type] || ["trash"]).slice();
   Object.keys(r.fixtures||{}).forEach(k => { if (r.fixtures[k] > 0 && hint.indexOf(k) < 0) hint.push(k); });
   const rest = FIXTURES.filter(([id]) => hint.indexOf(id) < 0);
 
   return '<div class="room-detail">'+
-    '<label class="field"><span>Name this room (optional)</span>'+
-      '<input data-r="label" data-rid="'+r.id+'" value="'+esc(r.label)+'" placeholder="'+esc(TYPE_NAME[r.type]||"Room")+'" autocomplete="off"></label>'+
-
-    '<div><div class="eyebrow" style="margin-bottom:6px">Measure</div>'+
-      '<div class="sqft-row">'+
-        '<label class="field"><span>Length</span><input data-r="len" data-rid="'+r.id+'" type="number" inputmode="decimal" value="'+esc(r.len)+'" placeholder="ft"></label>'+
-        '<span class="x">×</span>'+
-        '<label class="field"><span>Width</span><input data-r="wid" data-rid="'+r.id+'" type="number" inputmode="decimal" value="'+esc(r.wid)+'" placeholder="ft"></label>'+
-        '<span class="x">=</span>'+
-        '<label class="field"><span>Sq ft</span><input data-r="sqft" data-rid="'+r.id+'" type="number" inputmode="numeric" class="num" style="text-align:right;font-weight:700" value="'+esc(r.sqft)+'" placeholder="0"></label>'+
-      '</div>'+
-      '<p class="note" style="margin-top:5px">Type length and width to fill sq ft in, or just put the sq ft straight in.</p>'+
-    '</div>'+
+    nameField(r, TYPE_NAME[r.type] || "Room")+
+    measureRow(r, "Type length and width to fill sq ft in, or just put the sq ft straight in.")+
 
     chipBlock("Floor","floor",r.id,
       FLOORS_COMMON.map(f => [f,f]), FLOORS_MORE.map(f => [f,f]), r.floor, "More floor types")+
 
     chipBlock("How often it gets cleaned","freq",r.id,
-      FREQS_COMMON.map(f => [f[0],f[1]]), FREQS_MORE.map(f => [f[0],f[1]]), r.freq, "Other schedules")+
+      freqChips("janitorial","common"), freqChips("janitorial","more"), r.freq, "Other schedules")+
 
     '<div><div class="eyebrow" style="margin-bottom:6px">What\'s in it</div>'+
       '<div class="fixgrid">'+ hint.map(id => fixHTML(r,id)).join("") +'</div>'+
@@ -944,21 +1222,111 @@ function roomDetailHTML(r){
         '<div class="fixgrid" style="margin-top:8px">'+ rest.map(([id]) => fixHTML(r,id)).join("") +'</div></details>' : "")+
     '</div>'+
 
-    '<label class="field"><span>Notes</span><textarea data-r="notes" data-rid="'+r.id+'" placeholder="Condition, problem spots, what the customer complained about">'+esc(r.notes)+'</textarea></label>'+
+    '<label class="field"><span>Notes</span><textarea data-r="notes" data-rid="'+r.id+'" placeholder="'+esc(notePlaceholder)+'"></textarea></label>'+
 
     '<div><div class="eyebrow" style="margin-bottom:6px">Photos</div>'+
       '<div class="photos" data-photos="'+r.id+'">'+
-        (r.photos||[]).map(p => '<span class="photo" data-pid="'+p+'"><img alt="Room photo" data-src="'+p+'"><button data-delphoto="'+p+'" data-rid="'+r.id+'" aria-label="Remove photo">×</button></span>').join("")+
+        (r.photos||[]).map(x => '<span class="photo" data-pid="'+x+'"><img alt="Photo" data-src="'+x+'"><button data-delphoto="'+x+'" data-rid="'+r.id+'" aria-label="Remove photo">×</button></span>').join("")+
         (CAM_OK ? '<button class="addphoto" data-act="add-photo" data-rid="'+r.id+'">'+svg("cam")+'Camera</button>' : '')+
         '<button class="addphoto" data-act="pick-photo" data-rid="'+r.id+'">'+svg("pic")+(CAM_OK ? 'Files' : 'Add')+'</button>'+
       '</div></div>'+
 
     '<div class="row" style="gap:8px">'+
       '<button class="btn btn-ghost btn-sm grow" data-act="dup-room" data-rid="'+r.id+'">Duplicate</button>'+
-      '<button class="btn btn-ghost btn-danger btn-sm grow" data-act="del-room" data-rid="'+r.id+'">Delete room</button>'+
+      '<button class="btn btn-ghost btn-danger btn-sm grow" data-act="del-room" data-rid="'+r.id+'">Remove</button>'+
     '</div>'+
   '</div>';
 }
+
+/* ---------------- floors ---------------- */
+
+function floorDetailHTML(r, w){
+  const notePlaceholder = "Condition, how much finish is left, furniture to move, anything that slows it down";
+  const common = FLOOR_COMMON.map(id => [id, FLOOR_SERVICE_NAME[id]]);
+  const more = FLOOR_SERVICE_ORDER.filter(id => FLOOR_COMMON.indexOf(id) < 0).map(id => [id, FLOOR_SERVICE_NAME[id]]);
+
+  return '<div class="room-detail">'+
+    nameField(r, TYPE_NAME[r.type] || "Area")+
+    measureRow(r, "Only the square footage and the floor itself matter here.")+
+
+    chipBlock("Floor type","floor",r.id,
+      FLOORS_COMMON.map(f => [f,f]), FLOORS_MORE.map(f => [f,f]), r.floor, "More floor types")+
+
+    chipBlock("What we\'re doing to it","service",r.id, common, more, r.service, "More services")+
+
+    '<div class="fixgrid">'+ counterRow(r, "coats", "Passes / coats", 1) +'</div>'+
+    '<p class="note" style="margin-top:-6px">Two coats of finish takes twice as long as one. Leave it at 1 for a single pass.</p>'+
+
+    chipBlock("How often","freq",r.id,
+      freqChips("floor","common"), freqChips("floor","more"), r.freq, "Other schedules")+
+
+    '<label class="field"><span>Notes</span><textarea data-r="notes" data-rid="'+r.id+'" placeholder="'+esc(notePlaceholder)+'"></textarea></label>'+
+
+    '<div><div class="eyebrow" style="margin-bottom:6px">Photos</div>'+
+      '<div class="photos" data-photos="'+r.id+'">'+
+        (r.photos||[]).map(x => '<span class="photo" data-pid="'+x+'"><img alt="Photo" data-src="'+x+'"><button data-delphoto="'+x+'" data-rid="'+r.id+'" aria-label="Remove photo">×</button></span>').join("")+
+        (CAM_OK ? '<button class="addphoto" data-act="add-photo" data-rid="'+r.id+'">'+svg("cam")+'Camera</button>' : '')+
+        '<button class="addphoto" data-act="pick-photo" data-rid="'+r.id+'">'+svg("pic")+(CAM_OK ? 'Files' : 'Add')+'</button>'+
+      '</div></div>'+
+
+    '<div class="row" style="gap:8px">'+
+      '<button class="btn btn-ghost btn-sm grow" data-act="dup-room" data-rid="'+r.id+'">Duplicate</button>'+
+      '<button class="btn btn-ghost btn-danger btn-sm grow" data-act="del-room" data-rid="'+r.id+'">Remove</button>'+
+    '</div>'+
+  '</div>';
+}
+
+/* ---------------- glass ---------------- */
+
+function glassDetailHTML(r, w){
+  const notePlaceholder = "Hard water, paint specks, screens to pull, anything in the way";
+  return '<div class="room-detail">'+
+    nameField(r, GLASS_NAME[r.type] || "Glass")+
+
+    '<div><div class="eyebrow" style="margin-bottom:6px">Size of one pane</div>'+
+      '<div class="sqft-row">'+
+        '<label class="field"><span>Width</span><input data-r="len" data-rid="'+r.id+'" type="number" inputmode="decimal" value="'+esc(r.len)+'" placeholder="ft"></label>'+
+        '<span class="x">×</span>'+
+        '<label class="field"><span>Height</span><input data-r="wid" data-rid="'+r.id+'" type="number" inputmode="decimal" value="'+esc(r.wid)+'" placeholder="ft"></label>'+
+        '<span class="x">=</span>'+
+        '<label class="field"><span>Sq ft ea.</span>'+
+          '<div class="box num" style="min-height:var(--tap);border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface-2);display:flex;align-items:center;justify-content:flex-end;padding:0 12px;font-weight:700" data-each="'+r.id+'">'+
+            eachSqftText(r)+'</div></label>'+
+      '</div>'+
+      '<p class="note" style="margin-top:5px">Rough size is fine — it is the count that drives the hours.</p>'+
+    '</div>'+
+
+    '<div><div class="eyebrow" style="margin-bottom:6px">How many</div>'+
+      '<div class="fixgrid">'+ counterRow(r, "count", "Panes", 0) +'</div>'+
+      '<p class="note" style="margin-top:5px">Tap the number to type a big count instead of stepping to it.</p>'+
+    '</div>'+
+
+    chipBlock("Which sides","sides",r.id, SIDES.map(x => [x[0],x[1]]), [], r.sides, "")+
+    chipBlock("How we reach it","access",r.id,
+      ACCESS.slice(0,3).map(x => [x[0],x[1]]), ACCESS.slice(3).map(x => [x[0],x[1]]), r.access, "Harder access")+
+
+    '<label class="field"><span>Notes</span><textarea data-r="notes" data-rid="'+r.id+'" placeholder="'+esc(notePlaceholder)+'"></textarea></label>'+
+
+    '<div><div class="eyebrow" style="margin-bottom:6px">Photos</div>'+
+      '<div class="photos" data-photos="'+r.id+'">'+
+        (r.photos||[]).map(x => '<span class="photo" data-pid="'+x+'"><img alt="Photo" data-src="'+x+'"><button data-delphoto="'+x+'" data-rid="'+r.id+'" aria-label="Remove photo">×</button></span>').join("")+
+        (CAM_OK ? '<button class="addphoto" data-act="add-photo" data-rid="'+r.id+'">'+svg("cam")+'Camera</button>' : '')+
+        '<button class="addphoto" data-act="pick-photo" data-rid="'+r.id+'">'+svg("pic")+(CAM_OK ? 'Files' : 'Add')+'</button>'+
+      '</div></div>'+
+
+    '<div class="row" style="gap:8px">'+
+      '<button class="btn btn-ghost btn-sm grow" data-act="dup-room" data-rid="'+r.id+'">Duplicate</button>'+
+      '<button class="btn btn-ghost btn-danger btn-sm grow" data-act="del-room" data-rid="'+r.id+'">Remove</button>'+
+    '</div>'+
+  '</div>';
+}
+
+function eachSqftText(r){
+  const l = parseFloat(r.len), wd = parseFloat(r.wid);
+  if (isNaN(l) || isNaN(wd)) return "—";
+  return fmtNum(l * wd, 1);
+}
+
 function chipBlock(title, key, ownerId, common, more, current, moreLabel){
   const isMore = more.some(([v]) => v === current);
   const chip = ([v,label]) => '<button class="chip" data-val="'+esc(v)+'" aria-pressed="'+(current===v)+'">'+esc(label)+'</button>';
@@ -994,7 +1362,7 @@ function renderSettings(){
   let h = '<div class="wrap">';
   h += '<div class="section" style="margin-top:16px"><div class="banner warn">'+
        '<div><b>These are ballpark rates, not yours.</b><br>'+
-       'They come from general commercial-cleaning production figures so the app has something to work with. '+
+       'They come from general commercial-cleaning, window and floor-care production figures so the app has something to work with. '+
        'Tell Busy Beaver what your crews actually run and it will set these to your real numbers.</div></div></div>';
 
   h += '<div class="section"><span class="eyebrow">Where walkthroughs go</span>'+
@@ -1002,7 +1370,10 @@ function renderSettings(){
        '<input id="prefSendTo" type="email" inputmode="email" autocomplete="email" value="'+esc(PREFS.sendTo)+'" placeholder="name@company.com"></label>'+
        '<p class="note">Filled in for you every time you send a walkthrough. You can still change it in the moment.</p></div>';
 
-  h += '<div class="section"><span class="eyebrow">Square feet cleaned per hour</span>'+
+  h += '<details class="card" style="margin-bottom:10px"><summary class="disclose">'+
+       '<span class="eyebrow">Janitorial — sq ft per hour</span>'+
+       '<svg class="caret" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;stroke:var(--muted);fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round">'+ICON.chev+'</svg></summary>'+
+       '<div style="padding:0 14px 14px">'+
        '<p class="note">Higher number = faster room. Open office is quick; a restroom is slow.</p>'+
        '<div class="scrollx"><table class="ratetable"><thead><tr><th>Room type</th><th style="text-align:right">Sq ft / hr</th></tr></thead><tbody>';
   CATEGORIES.forEach(([cat,list]) => {
@@ -1011,15 +1382,47 @@ function renderSettings(){
       h += '<tr><td>'+esc(name)+'</td><td><input class="num" type="number" inputmode="numeric" data-rate="'+id+'" value="'+(RATES[id]||"")+'"></td></tr>';
     });
   });
-  h += '</tbody></table></div></div>';
+  h += '</tbody></table></div></div></details>';
 
-  h += '<div class="section"><span class="eyebrow">Minutes added per fixture</span>'+
+  h += '<details class="card" style="margin-bottom:10px"><summary class="disclose">'+
+       '<span class="eyebrow">Janitorial — minutes per fixture</span>'+
+       '<svg class="caret" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;stroke:var(--muted);fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round">'+ICON.chev+'</svg></summary>'+
+       '<div style="padding:0 14px 14px">'+
        '<p class="note">On top of the floor time — what it takes to actually service each one.</p>'+
        '<div class="scrollx"><table class="ratetable"><tbody>';
   FIXTURES.forEach(([id,name]) => {
     h += '<tr><td>'+esc(name)+'</td><td><input class="num" type="number" inputmode="decimal" step="0.25" data-fixmin="'+id+'" value="'+(FIXMIN[id]!=null?FIXMIN[id]:"")+'"></td></tr>';
   });
-  h += '</tbody></table></div></div>';
+  h += '</tbody></table></div></div></details>';
+
+  h += '<details class="card" style="margin-bottom:10px"><summary class="disclose">'+
+       '<span class="eyebrow">Windows — minutes per pane</span>'+
+       '<svg class="caret" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;stroke:var(--muted);fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round">'+ICON.chev+'</svg></summary>'+
+       '<div style="padding:0 14px 14px">'+
+       '<p class="note">Inside and out, working from the ground. Ladders, lifts and single-side work are '+
+       'adjusted on the pane itself.</p>'+
+       '<div class="scrollx"><table class="ratetable"><thead><tr><th>Glass type</th><th style="text-align:right">Min / pane</th></tr></thead><tbody>';
+  WINDOW_CATEGORIES.forEach(([cat,list]) => {
+    h += '<tr><td colspan="2" style="padding-top:14px"><span class="eyebrow">'+esc(cat)+'</span></td></tr>';
+    list.forEach(([id,name]) => {
+      h += '<tr><td>'+esc(name)+'</td><td><input class="num" type="number" inputmode="decimal" step="0.25" data-glassmin="'+id+'" value="'+(GLASSMIN[id]!=null?GLASSMIN[id]:"")+'"></td></tr>';
+    });
+  });
+  h += '</tbody></table></div></div></details>';
+
+  h += '<details class="card" style="margin-bottom:10px"><summary class="disclose">'+
+       '<span class="eyebrow">Floor work — sq ft per hour</span>'+
+       '<svg class="caret" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;stroke:var(--muted);fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round">'+ICON.chev+'</svg></summary>'+
+       '<div style="padding:0 14px 14px">'+
+       '<p class="note">One pass over bare floor. Extra coats multiply it.</p>'+
+       '<div class="scrollx"><table class="ratetable"><thead><tr><th>Service</th><th style="text-align:right">Sq ft / hr</th></tr></thead><tbody>';
+  FLOOR_SERVICES.forEach(([cat,list]) => {
+    h += '<tr><td colspan="2" style="padding-top:14px"><span class="eyebrow">'+esc(cat)+'</span></td></tr>';
+    list.forEach(([id,name]) => {
+      h += '<tr><td>'+esc(name)+'</td><td><input class="num" type="number" inputmode="numeric" data-floorrate="'+id+'" value="'+(FLOORRATE[id]!=null?FLOORRATE[id]:"")+'"></td></tr>';
+    });
+  });
+  h += '</tbody></table></div></div></details>';
 
   h += '<div class="section"><button class="btn btn-ghost btn-block btn-sm" data-act="reset-rates">Put the defaults back</button></div>';
 
@@ -1034,7 +1437,7 @@ function renderSettings(){
   h += '<div class="section"><span class="eyebrow">About</span>'+
        '<p class="note" id="offlineState">Checking whether this device has the app stored for offline use…</p>'+
        '<div style="margin-top:9px"><button class="btn btn-ghost btn-sm" data-act="check-update">Check for a newer version</button></div>'+
-       '<p class="note" style="margin-top:6px">Busy Bidder · Myles O\'Donnell</p></div>';
+       '<p class="note" style="margin-top:6px">Busy Bidder · Myles O\'Donnell &amp; Co.</p></div>';
   h += '<p class="note" style="margin:22px 0 40px">Changing a rate re-does the hours on every walkthrough, including ones you already sent.</p>';
   h += '</div>';
   $("#s-set").innerHTML = h;
@@ -1042,7 +1445,16 @@ function renderSettings(){
 
 /* ============================ room type picker ============================ */
 
+function pickerFor(kind){
+  return kind === "window" ? { cats: WINDOW_CATEGORIES, names: GLASS_NAME }
+                           : { cats: CATEGORIES,        names: TYPE_NAME };
+}
 function openTypeSheet(){
+  const w = currentWT();
+  const K = KINDS[kindOf(w)];
+  const head = $("#sheet").querySelector("h1");
+  if (head) head.textContent = K.pickTitle;
+  $("#typeSearch").placeholder = K.searchPlaceholder;
   $("#typeSearch").value = "";
   renderTypes("");
   $("#sheet").classList.add("on");
@@ -1059,14 +1471,17 @@ function closeTypeSheet(){
 }
 function renderTypes(q){
   q = (q||"").trim().toLowerCase();
+  const kind = kindOf(currentWT());
+  const { cats, names } = pickerFor(kind);
+  const recents = RECENT[kind] || [];
   let h = "";
-  if (!q && RECENT.length){
+  if (!q && recents.length){
     h += '<div class="cat"><span class="eyebrow">Used recently</span></div><div class="typelist">'+
-      RECENT.filter(id => TYPE_NAME[id]).map(id => '<button class="type" data-type="'+id+'">'+esc(TYPE_NAME[id])+'</button>').join("")+
+      recents.filter(id => names[id]).map(id => '<button class="type" data-type="'+id+'">'+esc(names[id])+'</button>').join("")+
       '</div>';
   }
   let hits = 0;
-  CATEGORIES.forEach(([cat,list]) => {
+  cats.forEach(([cat,list]) => {
     const match = list.filter(([id,name]) => !q || name.toLowerCase().includes(q) || cat.toLowerCase().includes(q));
     if (!match.length) return;
     hits += match.length;
@@ -1074,8 +1489,11 @@ function renderTypes(q){
       match.map(([id,name]) => '<button class="type" data-type="'+id+'">'+esc(name)+'</button>').join("")+
       '</div>';
   });
-  if (!hits) h += '<div class="empty" style="margin-top:22px"><h3>No match</h3><p class="note">Pick <b>Other</b> and type the name yourself.</p>'+
-    '<div style="margin-top:12px"><button class="btn btn-ghost btn-sm" data-type="other">Use “Other”</button></div></div>';
+  if (!hits){
+    const fallback = kind === "window" ? "other_glass" : "other";
+    h += '<div class="empty" style="margin-top:22px"><h3>No match</h3><p class="note">Pick <b>Other</b> and type the name yourself.</p>'+
+      '<div style="margin-top:12px"><button class="btn btn-ghost btn-sm" data-type="'+fallback+'">Use “Other”</button></div></div>';
+  }
   $("#typeResults").innerHTML = h;
 }
 
@@ -1223,22 +1641,46 @@ function saveFile(filename, text, mime){
 }
 
 function exportRow(w, r){
-  return {
+  const kind = kindOf(w);
+  const base = {
+    quoteType: KINDS[kind].badge,
     account: wtName(w), address: w.address || "",
     contact: w.contactName || "", contactPhone: w.contactPhone || "", contactEmail: w.contactEmail || "",
     buildingSqft: w.buildingSqft || "", floors: w.floors || "", occupants: w.occupants || "",
     currentCleaner: w.incumbent || "", bidDue: w.bidDue || "",
-    accountFrequency: FREQ_LABEL[w.defaultFreq || "5"] || "",
+    accountFrequency: FREQ_LABEL[w.defaultFreq || DEFAULT_FREQ[kind]] || "",
     siteNotes: (w.siteNotes || "").replace(/\s+/g," ").trim(),
     walkedOn: (w.createdAt || "").slice(0,10),
-    room: roomLabel(w, r), type: TYPE_NAME[r.type] || r.type,
-    length: r.len || "", width: r.wid || "", sqft: Math.round(roomSqft(r)),
-    floor: r.floor || "", frequency: FREQ_LABEL[r.freq] || "",
-    fixtures: fixtureText(r),
-    minutesPerVisit: Math.round(roomHoursPerVisit(r) * 60),
+    item: roomLabel(w, r), type: itemName(w, r),
+    length: r.len || "", width: r.wid || "",
     notes: (r.notes || "").replace(/\s+/g," ").trim(),
     photos: (r.photos || []).length
   };
+
+  if (kind === "window"){
+    return Object.assign(base, {
+      panes: paneCount(r), sqftGlass: Math.round(glassSqft(r)),
+      sides: SIDES_LABEL[r.sides] || "", access: ACCESS_LABEL[r.access] || "",
+      service: "", floor: "", passes: "", fixtures: "",
+      frequency: FREQ_LABEL[w.defaultFreq || DEFAULT_FREQ[kind]] || "",
+      sqft: "", minutes: Math.round(glassHours(r) * 60)
+    });
+  }
+  if (kind === "floor"){
+    return Object.assign(base, {
+      panes: "", sqftGlass: "", sides: "", access: "",
+      service: r.service ? FLOOR_SERVICE_NAME[r.service] : "",
+      floor: r.floor || "", passes: parseInt(r.coats,10) || 1, fixtures: "",
+      frequency: FREQ_LABEL[r.freq] || "",
+      sqft: Math.round(roomSqft(r)), minutes: Math.round(floorHours(r) * 60)
+    });
+  }
+  return Object.assign(base, {
+    panes: "", sqftGlass: "", sides: "", access: "", service: "", passes: "",
+    floor: r.floor || "", fixtures: fixtureText(r),
+    frequency: FREQ_LABEL[r.freq] || "",
+    sqft: Math.round(roomSqft(r)), minutes: Math.round(roomHoursPerVisit(r) * 60)
+  });
 }
 function fixtureText(r){
   return Object.keys(r.fixtures || {}).filter(k => r.fixtures[k] > 0)
@@ -1248,11 +1690,13 @@ function fixtureText(r){
 /* ---------- the typed-out report ---------- */
 
 function buildReport(w){
+  const kind = kindOf(w);
+  const K = KINDS[kind];
   const t = totals(w);
   const L = [];
   const walked = w.createdAt ? new Date(w.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "";
-  L.push("BID WALKTHROUGH — " + wtName(w));
-  L.push("Walked " + walked + " · Myles O'Donnell");
+  L.push(K.reportTitle + " — " + wtName(w));
+  L.push("Walked " + walked + " · Myles O'Donnell & Co.");
   L.push("");
 
   if (w.address) L.push("Address: " + w.address);
@@ -1266,27 +1710,56 @@ function buildReport(w){
   if (bldg) L.push("Building: " + bldg);
   if (w.incumbent) L.push("Current cleaner: " + w.incumbent);
   if (w.bidDue) L.push("Bid due: " + w.bidDue);
-  L.push("Service frequency: " + (FREQ_LABEL[w.defaultFreq || "5"] || ""));
+  L.push((kind === "janitorial" ? "Service frequency: " : "How often: ") +
+         (FREQ_LABEL[w.defaultFreq || DEFAULT_FREQ[kind]] || ""));
   L.push("");
 
   L.push("TOTALS");
-  L.push("  Cleanable sq ft    " + fmtNum(t.sqft));
-  L.push("  Hours per week     " + fmtHrs(t.week));
-  L.push("  Hours per month    " + fmtHrs(t.month));
-  L.push("  Full-service visit " + fmtHrs(t.fullVisit) + " hrs");
+  if (kind === "window"){
+    L.push("  Panes              " + fmtNum(t.panes));
+    L.push("  Sq ft of glass     " + fmtNum(t.sqft));
+    L.push("  Hours per visit    " + fmtHrs(t.visit));
+    if (!t.once) L.push("  Hours per year     " + fmtHrs(t.year));
+  } else if (kind === "floor"){
+    L.push("  Sq ft              " + fmtNum(t.sqft));
+    L.push("  Hours for the job  " + fmtHrs(t.visit));
+    if (!t.once) L.push("  Hours per year     " + fmtHrs(t.year));
+  } else {
+    L.push("  Cleanable sq ft    " + fmtNum(t.sqft));
+    L.push("  Hours per week     " + fmtHrs(t.week));
+    L.push("  Hours per month    " + fmtHrs(t.month));
+    L.push("  Full-service visit " + fmtHrs(t.fullVisit) + " hrs");
+  }
   L.push("");
 
-  L.push("ROOMS (" + w.rooms.length + ")");
+  L.push(K.itemWord.toUpperCase() + " (" + w.rooms.length + ")");
   L.push("");
   w.rooms.forEach((r, i) => {
     L.push((i+1) + ". " + roomLabel(w, r));
-    const dims = (r.len && r.wid) ? "  (" + r.len + " × " + r.wid + ")" : "";
-    L.push("   " + fmtNum(roomSqft(r)) + " sq ft" + dims +
-           (r.floor ? " · " + r.floor : "") +
-           " · " + (FREQ_LABEL[r.freq] || "") +
-           " · " + fmtNum(roomHoursPerVisit(r) * 60, 0) + " min/visit");
-    const fx = fixtureText(r);
-    if (fx) L.push("   " + fx);
+    if (kind === "window"){
+      const each = (parseFloat(r.len) && parseFloat(r.wid)) ? " (" + r.len + " × " + r.wid + " ea.)" : "";
+      L.push("   " + paneCount(r) + (paneCount(r) === 1 ? " pane" : " panes") + each +
+             " · " + (SIDES_LABEL[r.sides] || "") +
+             " · " + (ACCESS_LABEL[r.access] || "") +
+             " · " + fmtNum(glassHours(r) * 60, 0) + " min");
+      if (glassSqft(r)) L.push("   " + fmtNum(glassSqft(r)) + " sq ft of glass");
+    } else if (kind === "floor"){
+      const dims = (r.len && r.wid) ? "  (" + r.len + " × " + r.wid + ")" : "";
+      const passes = (parseInt(r.coats,10) || 1) > 1 ? " · " + parseInt(r.coats,10) + " passes" : "";
+      L.push("   " + fmtNum(roomSqft(r)) + " sq ft" + dims +
+             (r.floor ? " · " + r.floor : "") +
+             " · " + (r.service ? FLOOR_SERVICE_NAME[r.service] : "NO SERVICE PICKED") + passes +
+             " · " + (FREQ_LABEL[r.freq] || "") +
+             " · " + fmtNum(floorHours(r) * 60, 0) + " min");
+    } else {
+      const dims = (r.len && r.wid) ? "  (" + r.len + " × " + r.wid + ")" : "";
+      L.push("   " + fmtNum(roomSqft(r)) + " sq ft" + dims +
+             (r.floor ? " · " + r.floor : "") +
+             " · " + (FREQ_LABEL[r.freq] || "") +
+             " · " + fmtNum(roomHoursPerVisit(r) * 60, 0) + " min/visit");
+      const fx = fixtureText(r);
+      if (fx) L.push("   " + fx);
+    }
     if (r.notes) L.push("   Notes: " + r.notes.replace(/\s+/g," ").trim());
     if ((r.photos || []).length) L.push("   " + r.photos.length + " photo" + (r.photos.length > 1 ? "s" : "") + " on the phone");
     L.push("");
@@ -1294,7 +1767,7 @@ function buildReport(w){
 
   if (w.siteNotes){ L.push("SITE NOTES"); L.push(w.siteNotes.replace(/\s+/g," ").trim()); L.push(""); }
   L.push("Hours are figured from the app's production rates, which are generic industry");
-  L.push("ballparks until Myles O'Donnell's real crew rates are loaded in.");
+  L.push("ballparks until Myles O'Donnell & Co.'s real crew rates are loaded in.");
   return L.join("\n");
 }
 
@@ -1438,7 +1911,8 @@ function doEmail(){
 
 function toCSV(rows){
   if (!rows.length) return "";
-  const cols = Object.keys(rows[0]);
+  const cols = [];
+  rows.forEach(r => Object.keys(r).forEach(k => { if (cols.indexOf(k) < 0) cols.push(k); }));
   const q = v => '"' + String(v == null ? "" : v).replace(/"/g,'""') + '"';
   return cols.join(",") + "\n" + rows.map(r => cols.map(c => q(r[c])).join(",")).join("\n");
 }
@@ -1475,7 +1949,8 @@ async function backupAll(){
   }
   const payload = {
     app: "bid-walkthrough", version: 1, savedAt: nowISO(),
-    walkthroughs: DB.walkthroughs, rates: RATES, fixmin: FIXMIN, prefs: PREFS,
+    walkthroughs: DB.walkthroughs, rates: RATES, fixmin: FIXMIN,
+    glassmin: GLASSMIN, floorrate: FLOORRATE, prefs: PREFS,
     recent: RECENT, photos: photos
   };
   const name = "busy-bidder-backup-" + new Date().toISOString().slice(0,10) + ".json";
@@ -1495,8 +1970,11 @@ async function restoreFrom(file){
   data.walkthroughs.forEach(w => { if (!have.has(w.id)){ DB.walkthroughs.push(w); added++; } });
   if (data.rates) RATES = Object.assign({}, DEFAULT_RATES, data.rates);
   if (data.fixmin) FIXMIN = Object.assign({}, DEFAULT_FIXTURE_MIN, data.fixmin);
+  if (data.glassmin) GLASSMIN = Object.assign({}, DEFAULT_GLASS_MIN, data.glassmin);
+  if (data.floorrate) FLOORRATE = Object.assign({}, DEFAULT_FLOOR_RATES, data.floorrate);
   if (data.prefs) PREFS = Object.assign({}, PREFS, data.prefs);
-  if (Array.isArray(data.recent)) RECENT = data.recent;
+  if (data.recent && !Array.isArray(data.recent)) RECENT = Object.assign(RECENT, data.recent);
+  else if (Array.isArray(data.recent)) RECENT.janitorial = data.recent;
   for (const pid in (data.photos || {})) await putPhoto(pid, data.photos[pid]);
   save(); saveRates(); savePrefs(); saveRecent();
   goHomeReplacing();
@@ -1532,9 +2010,12 @@ document.addEventListener("click", async (e) => {
 
   if (el.dataset.type){
     const w = currentWT(); if (!w) return;
-    const r = newRoom(el.dataset.type, w.defaultFreq || "5");
+    const kind = kindOf(w);
+    const r = kind === "window"
+      ? newGlass(el.dataset.type)
+      : newRoom(el.dataset.type, w.defaultFreq || DEFAULT_FREQ[kind]);
     w.rooms.push(r);
-    RECENT = [el.dataset.type].concat(RECENT.filter(x => x !== el.dataset.type)).slice(0,8);
+    RECENT[kind] = [el.dataset.type].concat((RECENT[kind]||[]).filter(x => x !== el.dataset.type)).slice(0,8);
     saveRecent(); touch(w);
     view.openRoom = r.id;
     hideTypeSheet(); navBack();
@@ -1563,8 +2044,9 @@ document.addEventListener("click", async (e) => {
     }
 
     const r = w.rooms.find(x => x.id === owner); if (!r) return;
+    const STICKY = ["freq","sides","access","service"];
     const already = r[key] === val;
-    r[key] = (key === "freq") ? val : (already ? "" : val);
+    r[key] = (STICKY.indexOf(key) >= 0) ? val : (already ? "" : val);
     repress(key, owner, r[key]);
     touch(w); patchRoom(r.id);
     if (key === "freq") patchFreqApply();
@@ -1572,6 +2054,18 @@ document.addEventListener("click", async (e) => {
   }
 
   if (el.classList.contains("stp")){
+    const cnt = el.closest("[data-cnt]");
+    if (cnt){
+      const w = currentWT(); const r = w && w.rooms.find(x => x.id === cnt.dataset.rid); if (!r) return;
+      const key = cnt.dataset.cnt;
+      const min = parseInt(cnt.dataset.min, 10) || 0;
+      const next = Math.max(min, (parseInt(r[key], 10) || min) + parseInt(el.dataset.step, 10));
+      r[key] = next;
+      const box = cnt.querySelector(".fv");
+      if (box) { if ("value" in box) box.value = next; else box.textContent = next; }
+      touch(w); patchRoom(r.id);
+      return;
+    }
     const box = el.closest("[data-fix]"); if (!box) return;
     const w = currentWT(); const r = w && w.rooms.find(x => x.id === box.dataset.rid); if (!r) return;
     const key = box.dataset.fix;
@@ -1618,7 +2112,7 @@ document.addEventListener("click", async (e) => {
   }
 
   if (act === "new"){
-    const w = newWalkthrough();
+    const w = newWalkthrough(el.dataset.kind);
     DB.walkthroughs.push(w); save();
     go("wt", w.id);
     setTimeout(() => { const f = $("#f-name"); if (f) f.focus({ preventScroll:true }); }, 80);
@@ -1644,7 +2138,8 @@ document.addEventListener("click", async (e) => {
     const w = currentWT(); if (!w) return;
     if (!el.dataset.armed){
       el.dataset.armed = "1"; el.textContent = "Tap again to delete " + wtName(w);
-      setTimeout(() => { if (el.isConnected){ el.dataset.armed = ""; el.textContent = "Delete this walkthrough"; } }, 4000);
+      el.dataset.restore = "Delete this " + KINDS[kindOf(w)].noun;
+      setTimeout(() => { if (el.isConnected){ el.dataset.armed = ""; el.textContent = el.dataset.restore || "Delete"; } }, 4000);
       return;
     }
     w.rooms.forEach(r => (r.photos || []).forEach(delPhoto));
@@ -1662,6 +2157,8 @@ document.addEventListener("click", async (e) => {
   else if (act === "reset-rates"){
     RATES = Object.assign({}, DEFAULT_RATES);
     FIXMIN = Object.assign({}, DEFAULT_FIXTURE_MIN);
+    GLASSMIN = Object.assign({}, DEFAULT_GLASS_MIN);
+    FLOORRATE = Object.assign({}, DEFAULT_FLOOR_RATES);
     saveRates(); renderSettings(); toast("Defaults restored");
   }
 });
@@ -1687,13 +2184,19 @@ document.addEventListener("input", (e) => {
     const key = el.dataset.r;
     r[key] = el.value;
     if (key === "len" || key === "wid"){
-      const l = parseFloat(r.len), wd = parseFloat(r.wid);
-      if (!isNaN(l) && !isNaN(wd)){
-        r.sqft = String(Math.round(l * wd));
-        const box = document.querySelector('[data-r="sqft"][data-rid="'+r.id+'"]');
-        if (box) box.value = r.sqft;
+      if (kindOf(w) === "window"){
+        const each = document.querySelector('[data-each="'+r.id+'"]');
+        if (each) each.textContent = eachSqftText(r);
+      } else {
+        const l = parseFloat(r.len), wd = parseFloat(r.wid);
+        if (!isNaN(l) && !isNaN(wd)){
+          r.sqft = String(Math.round(l * wd));
+          const box = document.querySelector('[data-r="sqft"][data-rid="'+r.id+'"]');
+          if (box) box.value = r.sqft;
+        }
       }
     }
+
     if (key === "label"){
       const node = document.querySelector('[data-room="'+r.id+'"] .room-title');
       if (node) node.textContent = roomLabel(w, r);
@@ -1713,6 +2216,16 @@ document.addEventListener("input", (e) => {
   if (el.dataset.fixmin){
     const v = parseFloat(el.value);
     FIXMIN[el.dataset.fixmin] = isNaN(v) ? DEFAULT_FIXTURE_MIN[el.dataset.fixmin] : v;
+    saveRates(); return;
+  }
+  if (el.dataset.glassmin){
+    const v = parseFloat(el.value);
+    GLASSMIN[el.dataset.glassmin] = isNaN(v) ? DEFAULT_GLASS_MIN[el.dataset.glassmin] : v;
+    saveRates(); return;
+  }
+  if (el.dataset.floorrate){
+    const v = parseFloat(el.value);
+    FLOORRATE[el.dataset.floorrate] = isNaN(v) ? DEFAULT_FLOOR_RATES[el.dataset.floorrate] : v;
     saveRates(); return;
   }
 });
